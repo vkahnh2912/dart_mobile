@@ -1,0 +1,23 @@
+name: flutter_dart_titv_bai04_15
+description: >-
+  Project thuc hanh Lap trinh Dart tu Bai 04 den Bai 15 thuoc chuoi
+  Tu hoc Flutter - Thiet bi di dong (TITV - Thay Le Nhat Tung).
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.10.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  dart_eval: ^0.8.5
+  shared_preferences: ^2.5.6
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
