@@ -94,6 +94,20 @@ import 'lessons/Video39_Widgets_TextField_Controller/vidu_50_textfield_controlle
 // Video 40: Flutter Widgets - Quản lý Form & Validation
 import 'lessons/Video40_Widgets_Form_Validation/vidu_51_form_validation.dart' as v40_vd51;
 
+// Video 41: SQLite (sqflite) - Cài đặt & Xây dựng Model
+import 'lessons/Video41_SQLite_Model_CoBan/vidu_52_sqlite_model.dart' as v41_vd52;
+
+// Video 42: SQLite (sqflite) - Thiết kế DatabaseHelper Singleton
+import 'lessons/Video42_SQLite_DatabaseHelper/vidu_53_database_helper.dart' as v42_vd53;
+
+// Video 43: SQLite (sqflite) - Thực hành CRUD (Insert, Query, Update, Delete)
+import 'lessons/Video43_SQLite_CRUD/vidu_54_sqlite_crud.dart' as v43_vd54;
+
+// Video 44: SQLite (sqflite) - Ứng dụng Quản lý Ghi chú hoàn chỉnh
+import 'lessons/Video44_SQLite_NotesApp/vidu_55_sqlite_notes_app.dart' as v44_vd55;
+import 'lessons/Video45_REST_API_JSON/vidu_56_rest_api_json.dart' as v45_vd56;
+import 'lessons/Video46_Firebase_Auth_Profile/vidu_57_firebase_auth_profile.dart' as v46_vd57;
+
 class VideoGroup {
   final int videoNumber;
   final String videoTitle;
@@ -318,6 +332,42 @@ final List<VideoGroup> allVideos = [
     videoNumber: 40,
     videoTitle: 'Flutter Widgets: Quản lý Form & Kiểm tra hợp lệ Validation',
     folderName: 'Video40_Widgets_Form_Validation',
+    youtubeUrl: 'https://www.youtube.com/playlist?list=PLyxSzL3F7484qhNw1K08o8kDn8ecCpA_j',
+  ),
+  const VideoGroup(
+    videoNumber: 41,
+    videoTitle: 'SQLite (sqflite): Cài đặt & Xây dựng Model (toMap, fromMap)',
+    folderName: 'Video41_SQLite_Model_CoBan',
+    youtubeUrl: 'https://www.youtube.com/playlist?list=PLyxSzL3F7484qhNw1K08o8kDn8ecCpA_j',
+  ),
+  const VideoGroup(
+    videoNumber: 42,
+    videoTitle: 'SQLite (sqflite): Thiết kế DatabaseHelper Singleton & Mở DB',
+    folderName: 'Video42_SQLite_DatabaseHelper',
+    youtubeUrl: 'https://www.youtube.com/playlist?list=PLyxSzL3F7484qhNw1K08o8kDn8ecCpA_j',
+  ),
+  const VideoGroup(
+    videoNumber: 43,
+    videoTitle: 'SQLite (sqflite): Thực hành CRUD (Insert, Query, Update, Delete)',
+    folderName: 'Video43_SQLite_CRUD',
+    youtubeUrl: 'https://www.youtube.com/playlist?list=PLyxSzL3F7484qhNw1K08o8kDn8ecCpA_j',
+  ),
+  const VideoGroup(
+    videoNumber: 44,
+    videoTitle: 'SQLite (sqflite): Ứng dụng Quản lý Ghi chú (Notes App)',
+    folderName: 'Video44_SQLite_NotesApp',
+    youtubeUrl: 'https://www.youtube.com/playlist?list=PLyxSzL3F7484qhNw1K08o8kDn8ecCpA_j',
+  ),
+  const VideoGroup(
+    videoNumber: 45,
+    videoTitle: 'REST API & JSON: Gọi API trên mạng (HTTP GET/POST) & Hiển thị App',
+    folderName: 'Video45_REST_API_JSON',
+    youtubeUrl: 'https://www.youtube.com/playlist?list=PLyxSzL3F7484qhNw1K08o8kDn8ecCpA_j',
+  ),
+  const VideoGroup(
+    videoNumber: 46,
+    videoTitle: 'Firebase Backend & CSDL: Đăng ký, Đăng nhập & Sửa Profile',
+    folderName: 'Video46_Firebase_Auth_Profile',
     youtubeUrl: 'https://www.youtube.com/playlist?list=PLyxSzL3F7484qhNw1K08o8kDn8ecCpA_j',
   ),
 ];
@@ -736,5 +786,79 @@ final List<LessonItem> allLessons = [
     requiresInput: false,
     summary: 'Xây dựng biểu mẫu nhập liệu chuẩn với cơ chế validate đồng loạt và xử lý gửi dữ liệu an toàn.',
     run: v40_vd51.main,
+  ),
+
+  // --- Video 41 ---
+  LessonItem(
+    id: 42,
+    videoNumber: 41,
+    videoTitle: 'SQLite (sqflite): Cài đặt & Xây dựng Model (toMap, fromMap)',
+    exampleTitle: 'VD52: Khởi tạo lớp NoteItem & Ánh xạ dữ liệu toMap() / fromMap()',
+    filePath: 'Video41_SQLite_Model_CoBan/vidu_52_sqlite_model.dart',
+    youtubeUrl: 'https://www.youtube.com/playlist?list=PLyxSzL3F7484qhNw1K08o8kDn8ecCpA_j',
+    requiresInput: false,
+    summary: 'Cài đặt sqflite & path, định nghĩa cấu trúc thực thể NoteItem và chuyển đổi qua lại với Map<String, dynamic>.',
+    run: v41_vd52.main,
+  ),
+
+  // --- Video 42 ---
+  LessonItem(
+    id: 43,
+    videoNumber: 42,
+    videoTitle: 'SQLite (sqflite): Thiết kế DatabaseHelper Singleton & Mở DB',
+    exampleTitle: 'VD53: Khởi tạo kết nối SQLite Singleton, getDatabasesPath & CREATE TABLE',
+    filePath: 'Video42_SQLite_DatabaseHelper/vidu_53_database_helper.dart',
+    youtubeUrl: 'https://www.youtube.com/playlist?list=PLyxSzL3F7484qhNw1K08o8kDn8ecCpA_j',
+    requiresInput: false,
+    summary: 'Xây dựng lớp NoteDatabaseHelper theo mẫu Singleton, mở cơ sở dữ liệu cục bộ và thực thi lệnh CREATE TABLE.',
+    run: v42_vd53.main,
+  ),
+
+  // --- Video 43 ---
+  LessonItem(
+    id: 44,
+    videoNumber: 43,
+    videoTitle: 'SQLite (sqflite): Thực hành CRUD (Insert, Query, Update, Delete)',
+    exampleTitle: 'VD54: Truy vấn Thêm, Đọc, Sửa, Xóa & Tìm kiếm với sqflite',
+    filePath: 'Video43_SQLite_CRUD/vidu_54_sqlite_crud.dart',
+    youtubeUrl: 'https://www.youtube.com/playlist?list=PLyxSzL3F7484qhNw1K08o8kDn8ecCpA_j',
+    requiresInput: false,
+    summary: 'Làm chủ 4 thao tác cơ sở dữ liệu cốt lõi: db.insert, db.query (WHERE LIKE), db.update và db.delete.',
+    run: v43_vd54.main,
+  ),
+
+  // --- Video 44 ---
+  LessonItem(
+    id: 45,
+    videoNumber: 44,
+    videoTitle: 'SQLite (sqflite): Ứng dụng Quản lý Ghi chú (Notes App)',
+    exampleTitle: 'VD55: Kiến trúc Ứng dụng Quản lý Ghi chú & Công việc với SQLite thực tế',
+    filePath: 'Video44_SQLite_NotesApp/vidu_55_sqlite_notes_app.dart',
+    youtubeUrl: 'https://www.youtube.com/playlist?list=PLyxSzL3F7484qhNw1K08o8kDn8ecCpA_j',
+    requiresInput: false,
+    summary: 'Kết hợp giao diện Flutter (Form, ListView, Dismissible, Search/Filter) với cơ sở dữ liệu SQLite thật.',
+    run: v44_vd55.main,
+  ),
+  LessonItem(
+    id: 46,
+    videoNumber: 45,
+    videoTitle: 'REST API & JSON: Gọi API trên mạng (HTTP GET/POST) & Hiển thị App',
+    exampleTitle: 'VD56: Gọi REST API lấy danh sách Sản phẩm, Bài viết, Users & Lưu vào SQLite',
+    filePath: 'Video45_REST_API_JSON/vidu_56_rest_api_json.dart',
+    youtubeUrl: 'https://www.youtube.com/playlist?list=PLyxSzL3F7484qhNw1K08o8kDn8ecCpA_j',
+    requiresInput: false,
+    summary: 'Gọi HTTP GET/POST tới REST API (dummyjson.com), giải mã JSON sang Dart Model và hiển thị lên giao diện kèm lưu SQLite.',
+    run: v45_vd56.main,
+  ),
+  LessonItem(
+    id: 47,
+    videoNumber: 46,
+    videoTitle: 'Firebase Backend & CSDL: Đăng ký, Đăng nhập & Sửa Profile',
+    exampleTitle: 'VD57: Kết nối Firebase Auth & Cloud CSDL (Đăng ký, Đăng nhập, Sửa Profile)',
+    filePath: 'Video46_Firebase_Auth_Profile/vidu_57_firebase_auth_profile.dart',
+    youtubeUrl: 'https://www.youtube.com/playlist?list=PLyxSzL3F7484qhNw1K08o8kDn8ecCpA_j',
+    requiresInput: false,
+    summary: 'Tạo CSDL và Backend Firebase, từ App gọi tới Backend thực hiện Đăng ký (signUp), Đăng nhập (signIn) và Sửa Profile người dùng.',
+    run: v46_vd57.main,
   ),
 ];

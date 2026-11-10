@@ -1,14 +1,19 @@
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
+import '../../database/database_helper.dart';
+import '../../models/monster.dart';
+import '../../repositories/monster_repository.dart';
 import 'models/entities.dart';
 import 'renderer/space_painter.dart';
 
 class SpaceShooterGame extends StatefulWidget {
   final VoidCallback? onExitToMenu;
-  const SpaceShooterGame({super.key, this.onExitToMenu});
+  final int initialStage;
+  const SpaceShooterGame({super.key, this.onExitToMenu, this.initialStage = 1});
 
   @override
   State<SpaceShooterGame> createState() => _SpaceShooterGameState();
@@ -52,7 +57,7 @@ class _SpaceShooterGameState extends State<SpaceShooterGame>
   final List<Enemy> _enemies = [];
   final List<FloatingText> _floatingTexts = [];
 
-  // 10-Stage Level System
+  // 8-Stage Level System
   int _stage = 1;
   int _subWave = 1;
   double _spawnTimer = 0.0;
@@ -64,18 +69,79 @@ class _SpaceShooterGameState extends State<SpaceShooterGame>
   bool _isGameOver = false;
 
   int _score = 0;
+  int _highScore = 0;
+  int _highestStage = 1;
+
+  // SQLite Database (game.db) - Kết nối dữ liệu Purple Demon & người chơi
+  final MonsterRepository _monsterRepository = MonsterRepository();
+  Monster _purpleDemon = DatabaseHelper.defaultPurpleDemon;
+  ui.Image? _monsterSprite;
 
   // VFX
   double _screenShake = 0.0;
-  double _flashOpacity = 0.0;
+  final double _flashOpacity = 0.0;
   double _bossWarningTimer = 0.0;
 
   @override
   void initState() {
     super.initState();
+    _stage = widget.initialStage.clamp(1, 8);
+    _highestStage = _stage;
     _initCosmos();
+    _loadDatabaseConfig();
     _ticker = createTicker(_onTick);
     _ticker.start();
+  }
+
+  Future<void> _loadDatabaseConfig() async {
+    try {
+      final demon = await _monsterRepository.getPurpleDemon();
+      final player = await _monsterRepository.getPlayerProfile();
+      final savedHigh = (player['high_score'] as num?)?.toInt() ?? 0;
+      final savedStage = (player['current_stage'] as num?)?.toInt() ?? 1;
+      ui.Image? loadedSprite;
+      if (demon.image.trim().isNotEmpty) {
+        try {
+          final data = await rootBundle.load(demon.image.trim());
+          final codec = await ui.instantiateImageCodec(data.buffer.asUint8List());
+          final frame = await codec.getNextFrame();
+          loadedSprite = frame.image;
+        } catch (_) {}
+      }
+      if (mounted) {
+        setState(() {
+          _purpleDemon = demon;
+          _monsterSprite = loadedSprite;
+          _highScore = savedHigh > _score ? savedHigh : _score;
+          _highestStage = savedStage > _stage ? savedStage : _stage;
+        });
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _saveProgressToDatabase({int? overrideStage}) async {
+    final stageToSave = overrideStage ?? _stage;
+    if (_score > _highScore) {
+      _highScore = _score;
+    }
+    if (stageToSave > _highestStage) {
+      _highestStage = stageToSave.clamp(1, 8);
+    }
+    try {
+      await _monsterRepository.savePlayerProgress(
+        hp: _playerHealth.round(),
+        shield: _playerShield.round(),
+        weaponLevel: _weaponLevel,
+        bombs: _bombCount,
+        score: _highScore,
+        stage: _highestStage,
+      );
+    } catch (_) {}
+  }
+
+  Future<void> _handleExitToMenu() async {
+    await _saveProgressToDatabase();
+    widget.onExitToMenu?.call();
   }
 
   void _initCosmos() {
@@ -86,22 +152,25 @@ class _SpaceShooterGameState extends State<SpaceShooterGame>
         x: rand.nextDouble() * 500,
         y: rand.nextDouble() * 1000,
         speed: 35.0 + rand.nextDouble() * 140.0,
-        size: 0.8 + rand.nextDouble() * 2.2,
-        color: i % 4 == 0
-            ? const Color(0xFF80D8FF)
-            : (i % 6 == 0 ? const Color(0xFFFFD54F) : Colors.white),
+        size: 0.9 + rand.nextDouble() * 2.4,
+        color: i % 5 == 0
+            ? const Color(0xFFE040FB)
+            : (i % 4 == 0
+                ? const Color(0xFF80D8FF)
+                : (i % 7 == 0 ? const Color(0xFFFFD54F) : Colors.white)),
         twinkleOffset: rand.nextDouble() * math.pi * 2,
       ));
     }
 
-    // Không dùng màu Cyan sáng làm đục màn hình, dùng sắc tím vũ trụ và xanh thẫm
+    // Các hành tinh / tinh vân tối màu tím & xanh lục đậm giống Hình 2 (không bao giờ làm trắng màn hình)
     _nebulae.clear();
-    _nebulae.add(Nebula(x: 100, y: 150, radius: 160, color: const Color(0xFF38006B), speed: 16.0));
-    _nebulae.add(Nebula(x: 300, y: 550, radius: 180, color: const Color(0xFF0D1E4A), speed: 22.0));
+    _nebulae.add(Nebula(x: 90, y: 240, radius: 115, color: const Color(0xFF2A0845), speed: 18.0));
+    _nebulae.add(Nebula(x: 310, y: 640, radius: 135, color: const Color(0xFF062C30), speed: 24.0));
   }
 
   @override
   void dispose() {
+    _saveProgressToDatabase();
     _ticker.dispose();
     _frameNotifier.dispose();
     super.dispose();
@@ -128,7 +197,6 @@ class _SpaceShooterGameState extends State<SpaceShooterGame>
       _bombCount = 3;
       _invulnerableTimer = 2.0;
       _overdriveTimer = 0.0;
-      _flashOpacity = 0.0;
       _screenShake = 0.0;
       _lastElapsed = Duration.zero;
 
@@ -145,6 +213,10 @@ class _SpaceShooterGameState extends State<SpaceShooterGame>
     setState(() {
       if (_stage < 8) {
         _stage++;
+        if (_stage > _highestStage) {
+          _highestStage = _stage;
+        }
+        _saveProgressToDatabase(overrideStage: _stage);
         _subWave = 1;
         _spawnTimer = 0.0;
         _enemiesSpawnedInSubWave = 0;
@@ -152,8 +224,6 @@ class _SpaceShooterGameState extends State<SpaceShooterGame>
         _isBossActive = false;
         _isStageClear = false;
 
-        // Triệt tiêu hoàn toàn màn trắng/sáng mờ khi sang bàn
-        _flashOpacity = 0.0;
         _screenShake = 0.0;
         _lastElapsed = Duration.zero;
 
@@ -224,7 +294,6 @@ class _SpaceShooterGameState extends State<SpaceShooterGame>
     // 3. Timers & Timed Overdrive/Shield
     if (_invulnerableTimer > 0) _invulnerableTimer -= clampedDt;
     if (_screenShake > 0) _screenShake = (_screenShake - clampedDt * 4.0).clamp(0.0, 1.0);
-    if (_flashOpacity > 0) _flashOpacity = (_flashOpacity - clampedDt * 5.5).clamp(0.0, 1.0);
     if (_overdriveTimer > 0) _overdriveTimer -= clampedDt;
 
     // Passive Shield Regen
@@ -289,7 +358,8 @@ class _SpaceShooterGameState extends State<SpaceShooterGame>
 
           if (dx < hitDist && dy < e.height / 2.0 + b.radius) {
             e.health -= b.damage;
-            _createImpactSparks(b.x, b.y, const Color(0xFF80D8FF));
+            e.hitFlashTimer = 0.18; // Kích hoạt Hit Animation (Trúng đạn) giống Hình 3
+            _createImpactSparks(b.x, b.y, const Color(0xFFFF4081));
 
             if (!b.isLaser) {
               _bullets.removeAt(i);
@@ -321,11 +391,12 @@ class _SpaceShooterGameState extends State<SpaceShooterGame>
       // Enemy shooting patterns
       if (e.shootTimer >= e.shootInterval && e.y > 15 && e.y < _screenSize.height - 80) {
         e.shootTimer = 0.0;
+        e.shootAnimTimer = 0.25; // Kích hoạt Shoot Animation giống Hình 3
         _enemyFire(e);
       }
 
       // Offscreen culling for non-bosses
-      if (e.type != EnemyType.boss && e.y > _screenSize.height + 40) {
+      if (e.type != EnemyType.boss && e.y > _screenSize.height + 55) {
         _enemies.removeAt(i);
         continue;
       }
@@ -363,7 +434,7 @@ class _SpaceShooterGameState extends State<SpaceShooterGame>
     _particles.removeWhere((pt) => !pt.update(clampedDt));
     _floatingTexts.removeWhere((ft) => !ft.update(clampedDt));
 
-    // 10. 10-Stage Progression & Boss Spawning Logic
+    // 10. 8-Stage Progression & Boss Spawning Logic
     _updateStageProgression(clampedDt);
 
     // Repaint game canvas without triggering widget rebuild
@@ -377,17 +448,21 @@ class _SpaceShooterGameState extends State<SpaceShooterGame>
       if (!bossAlive) {
         // Boss Defeated!
         _isBossActive = false;
-        _flashOpacity = 0.0;
         HapticFeedback.heavyImpact();
 
         if (_stage >= 8) {
-          // Beat Level 8 -> Game Victory!
           _isGameVictory = true;
+          _highestStage = 8;
+          _saveProgressToDatabase(overrideStage: 8);
           _addFloatingText(_screenSize.width / 2, 280, '*** CHIẾN THẦN VŨ TRỤ: ANH KHÁNH ĐẸP TRAI! ***', const Color(0xFFFFD700), scale: 1.5);
           setState(() {});
         } else {
-          // Stage Cleared!
           _isStageClear = true;
+          final unlockedStage = (_stage + 1).clamp(1, 8);
+          if (unlockedStage > _highestStage) {
+            _highestStage = unlockedStage;
+          }
+          _saveProgressToDatabase(overrideStage: unlockedStage);
           _addFloatingText(_screenSize.width / 2, 280, '=== STAGE $_stage HOÀN THÀNH! ===', const Color(0xFF00E676), scale: 1.4);
           setState(() {});
         }
@@ -397,7 +472,7 @@ class _SpaceShooterGameState extends State<SpaceShooterGame>
 
     if (_isBossApproaching) {
       _bossWarningTimer += dt;
-      if (_bossWarningTimer >= 3.2) {
+      if (_bossWarningTimer >= 2.6) {
         _isBossApproaching = false;
         _spawnStageBoss();
       }
@@ -406,8 +481,8 @@ class _SpaceShooterGameState extends State<SpaceShooterGame>
 
     _spawnTimer += dt;
 
-    // Quái hiện nhiều lên, dồn dập và đông đảo (3 đợt lính mỗi stage)
-    final spawnRate = (_stage >= 6 ? 0.38 : (_stage >= 3 ? 0.48 : 0.58));
+    // Tốc độ sinh quái dồn dập tương ứng với tốc độ quái bay nhanh gấp đôi
+    final spawnRate = (_stage >= 6 ? 0.24 : (_stage >= 3 ? 0.30 : 0.36));
     final maxEnemies = (_stage >= 6 ? 16 : (_stage >= 3 ? 14 : 12));
 
     if (_spawnTimer >= spawnRate && _enemies.length < maxEnemies && _enemiesSpawnedInSubWave < (12 + _stage * 3)) {
@@ -437,116 +512,125 @@ class _SpaceShooterGameState extends State<SpaceShooterGame>
     }
   }
 
-  // --- Spawn Minion Swarms & Formations (Quái xuất hiện nhiều, theo đàn) ---
+  // --- Spawn Minion Swarms & Formations (Kết nối chỉ số Purple Demon từ SQLite game.db: hp=100, damage=20, speed=2.0, score=100) ---
   void _spawnMinionSwarm() {
     final rand = math.Random();
     final pattern = rand.nextDouble();
-    final centerX = 50.0 + rand.nextDouble() * (_screenSize.width - 100.0);
+    final centerX = 55.0 + rand.nextDouble() * (_screenSize.width - 110.0);
+
+    final speedMult = _purpleDemon.speed > 0 ? _purpleDemon.speed : 2.0;
+    final baseHp = _purpleDemon.hp > 0 ? _purpleDemon.hp.toDouble() : 100.0;
+    final baseScore = _purpleDemon.score > 0 ? _purpleDemon.score : 100;
 
     if (pattern < 0.35) {
-      // Đội hình 1: Phi cơ Scout hình chữ V (3 chiếc lao xuống dồn dập)
+      // Đội hình 1: 3 Quái Purple Demon đội hình chữ V (Tốc độ nhân theo speedMult từ SQLite = 2.0)
       for (int i = -1; i <= 1; i++) {
         _enemiesSpawnedInSubWave++;
+        final hp = (baseHp * 0.6) + _stage * 20.0;
         _enemies.add(Enemy(
-          x: (centerX + i * 36.0).clamp(25.0, _screenSize.width - 25.0),
-          y: -25.0 - (i.abs() * 25.0),
+          x: (centerX + i * 44.0).clamp(32.0, _screenSize.width - 32.0),
+          y: -30.0 - (i.abs() * 28.0),
           vx: 0,
-          vy: 135 + _stage * 12.0,
+          vy: (135.0 + _stage * 12.0) * speedMult,
           type: EnemyType.scout,
-          health: 40 + _stage * 22.0,
-          maxHealth: 40 + _stage * 22.0,
-          width: 28,
-          height: 28,
-          scoreValue: 90 + _stage * 30,
-          shootInterval: (1.5 - _stage * 0.08).clamp(0.65, 1.5),
+          health: hp,
+          maxHealth: hp,
+          width: 48,
+          height: 48,
+          scoreValue: baseScore + (_stage - 1) * 30,
+          shootInterval: (0.95 - _stage * 0.05).clamp(0.45, 0.95),
         ));
       }
     } else if (pattern < 0.65) {
-      // Đội hình 2: Cặp Tiêm kích Interceptor đảo cánh cắt chéo nhau
+      // Đội hình 2: Cặp Quái Purple Demon Interceptor cắt chéo tốc độ gấp đôi (vx * speedMult, vy * speedMult)
       _enemiesSpawnedInSubWave += 2;
+      final hp = baseHp + (_stage - 1) * 35.0;
       _enemies.add(Enemy(
-        x: (centerX - 40.0).clamp(30.0, _screenSize.width - 30.0),
-        y: -35.0,
-        vx: 80.0 + _stage * 8.0,
-        vy: 115 + _stage * 10.0,
+        x: (centerX - 42.0).clamp(36.0, _screenSize.width - 36.0),
+        y: -40.0,
+        vx: (80.0 + _stage * 8.0) * speedMult,
+        vy: (115.0 + _stage * 10.0) * speedMult,
         type: EnemyType.interceptor,
-        health: 80 + _stage * 35.0,
-        maxHealth: 80 + _stage * 35.0,
-        width: 40,
-        height: 38,
-        scoreValue: 160 + _stage * 50,
-        shootInterval: (1.3 - _stage * 0.08).clamp(0.55, 1.3),
+        health: hp,
+        maxHealth: hp,
+        width: 56,
+        height: 54,
+        scoreValue: (baseScore * 1.5).round() + _stage * 40,
+        shootInterval: (0.85 - _stage * 0.05).clamp(0.42, 0.85),
       ));
       _enemies.add(Enemy(
-        x: (centerX + 40.0).clamp(30.0, _screenSize.width - 30.0),
-        y: -35.0,
-        vx: -80.0 - _stage * 8.0,
-        vy: 115 + _stage * 10.0,
+        x: (centerX + 42.0).clamp(36.0, _screenSize.width - 36.0),
+        y: -40.0,
+        vx: -(80.0 + _stage * 8.0) * speedMult,
+        vy: (115.0 + _stage * 10.0) * speedMult,
         type: EnemyType.interceptor,
-        health: 80 + _stage * 35.0,
-        maxHealth: 80 + _stage * 35.0,
-        width: 40,
-        height: 38,
-        scoreValue: 160 + _stage * 50,
-        shootInterval: (1.3 - _stage * 0.08).clamp(0.55, 1.3),
+        health: hp,
+        maxHealth: hp,
+        width: 56,
+        height: 54,
+        scoreValue: (baseScore * 1.5).round() + _stage * 40,
+        shootInterval: (0.85 - _stage * 0.05).clamp(0.42, 0.85),
       ));
-    } else if (pattern < 0.85 && _stage >= 3) {
-      // Đội hình 3: Thiết giáp Hạng nặng Heavy Cruiser có Scout hộ tống
+    } else if (pattern < 0.85) {
+      // Đội hình 3: Đại Quái Purple Demon Heavy Cruiser + Hộ vệ
       _enemiesSpawnedInSubWave += 2;
+      final cruiserHp = (baseHp * 2.5) + _stage * 100.0;
+      final scoutHp = (baseHp * 0.6) + _stage * 20.0;
       _enemies.add(Enemy(
-        x: centerX.clamp(45.0, _screenSize.width - 45.0),
-        y: -50.0,
+        x: centerX.clamp(48.0, _screenSize.width - 48.0),
+        y: -55.0,
         vx: 0,
-        vy: 50 + _stage * 4.0,
+        vy: (55.0 + _stage * 5.0) * speedMult,
         type: EnemyType.heavyCruiser,
-        health: 300 + _stage * 110.0,
-        maxHealth: 300 + _stage * 110.0,
-        width: 64,
-        height: 52,
-        scoreValue: 400 + _stage * 100,
-        shootInterval: (1.7 - _stage * 0.1).clamp(0.75, 1.7),
+        health: cruiserHp,
+        maxHealth: cruiserHp,
+        width: 72,
+        height: 68,
+        scoreValue: (baseScore * 3) + _stage * 100,
+        shootInterval: (1.0 - _stage * 0.06).clamp(0.50, 1.0),
       ));
       _enemies.add(Enemy(
-        x: (centerX - 50.0).clamp(25.0, _screenSize.width - 25.0),
-        y: -25.0,
+        x: (centerX - 52.0).clamp(32.0, _screenSize.width - 32.0),
+        y: -30.0,
         vx: 0,
-        vy: 130 + _stage * 10.0,
+        vy: (130.0 + _stage * 10.0) * speedMult,
         type: EnemyType.scout,
-        health: 40 + _stage * 20.0,
-        maxHealth: 40 + _stage * 20.0,
-        width: 28,
-        height: 28,
-        scoreValue: 90 + _stage * 30,
-        shootInterval: 1.4,
+        health: scoutHp,
+        maxHealth: scoutHp,
+        width: 48,
+        height: 48,
+        scoreValue: baseScore + (_stage - 1) * 30,
+        shootInterval: 0.85,
       ));
     } else {
-      // Đội hình 4: Cặp phi cơ trinh sát song sát
+      // Đội hình 4: Cặp Quái Purple Demon song sát lao nhanh gấp đôi
       _enemiesSpawnedInSubWave += 2;
+      final hp = baseHp + (_stage - 1) * 20.0;
       _enemies.add(Enemy(
-        x: (centerX - 35.0).clamp(25.0, _screenSize.width - 25.0),
-        y: -30.0,
+        x: (centerX - 38.0).clamp(32.0, _screenSize.width - 32.0),
+        y: -35.0,
         vx: 0,
-        vy: 140 + _stage * 10.0,
+        vy: (140.0 + _stage * 10.0) * speedMult,
         type: EnemyType.scout,
-        health: 40 + _stage * 20.0,
-        maxHealth: 40 + _stage * 20.0,
-        width: 28,
-        height: 28,
-        scoreValue: 90 + _stage * 30,
-        shootInterval: 1.4,
+        health: hp,
+        maxHealth: hp,
+        width: 48,
+        height: 48,
+        scoreValue: baseScore + (_stage - 1) * 30,
+        shootInterval: 0.85,
       ));
       _enemies.add(Enemy(
-        x: (centerX + 35.0).clamp(25.0, _screenSize.width - 25.0),
-        y: -30.0,
+        x: (centerX + 38.0).clamp(32.0, _screenSize.width - 32.0),
+        y: -35.0,
         vx: 0,
-        vy: 140 + _stage * 10.0,
+        vy: (140.0 + _stage * 10.0) * speedMult,
         type: EnemyType.scout,
-        health: 40 + _stage * 20.0,
-        maxHealth: 40 + _stage * 20.0,
-        width: 28,
-        height: 28,
-        scoreValue: 90 + _stage * 30,
-        shootInterval: 1.4,
+        health: hp,
+        maxHealth: hp,
+        width: 48,
+        height: 48,
+        scoreValue: baseScore + (_stage - 1) * 30,
+        shootInterval: 0.85,
       ));
     }
   }
@@ -554,7 +638,7 @@ class _SpaceShooterGameState extends State<SpaceShooterGame>
   // --- Spawn Boss for Current Stage (Levels 1 to 8) ---
   void _spawnStageBoss() {
     _isBossActive = true;
-    _enemies.clear(); // Clear minions for epic 1v1 duel
+    _enemies.clear();
 
     final bossIdx = (_stage - 1).clamp(0, BossConfig.allBosses.length - 1);
     final cfg = BossConfig.allBosses[bossIdx];
@@ -563,7 +647,7 @@ class _SpaceShooterGameState extends State<SpaceShooterGame>
       x: _screenSize.width / 2,
       y: -cfg.height - 20,
       vx: 0,
-      vy: 42.0,
+      vy: 84.0, // Tốc độ xuất hiện nhanh gấp đôi
       type: EnemyType.boss,
       health: cfg.maxHealth,
       maxHealth: cfg.maxHealth,
@@ -588,20 +672,17 @@ class _SpaceShooterGameState extends State<SpaceShooterGame>
 
     switch (_weaponLevel) {
       case 1:
-        // Level 1: Twin Plasma Bolts
         _bullets.add(Bullet(x: px - 9, y: py, vx: 0, vy: -850, isPlayer: true, damage: 22, radius: 4.8, color: const Color(0xFF00E5FF)));
         _bullets.add(Bullet(x: px + 9, y: py, vx: 0, vy: -850, isPlayer: true, damage: 22, radius: 4.8, color: const Color(0xFF00E5FF)));
         break;
 
       case 2:
-        // Level 2: 3-Way Spread Blaster
         _bullets.add(Bullet(x: px, y: py - 4, vx: 0, vy: -920, isPlayer: true, damage: 30, radius: 5.5, color: const Color(0xFFFFD600)));
         _bullets.add(Bullet(x: px - 12, y: py, vx: -120, vy: -880, isPlayer: true, damage: 25, radius: 5.0, color: const Color(0xFF00E5FF)));
         _bullets.add(Bullet(x: px + 12, y: py, vx: 120, vy: -880, isPlayer: true, damage: 25, radius: 5.0, color: const Color(0xFF00E5FF)));
         break;
 
       case 3:
-        // Level 3: 4-Way Heavy Energy Blaster
         _bullets.add(Bullet(x: px - 7, y: py - 4, vx: -40, vy: -950, isPlayer: true, damage: 35, radius: 5.8, color: const Color(0xFF00E5FF)));
         _bullets.add(Bullet(x: px + 7, y: py - 4, vx: 40, vy: -950, isPlayer: true, damage: 35, radius: 5.8, color: const Color(0xFF00E5FF)));
         _bullets.add(Bullet(x: px - 18, y: py, vx: -160, vy: -880, isPlayer: true, damage: 28, radius: 5.2, color: const Color(0xFFFFD600)));
@@ -609,7 +690,6 @@ class _SpaceShooterGameState extends State<SpaceShooterGame>
         break;
 
       case 4:
-        // Level 4: 5-Way Fan Spread + Dual Plasma Lasers
         _bullets.add(Bullet(x: px - 8, y: py - 10, vx: 0, vy: -1050, isPlayer: true, damage: 55, radius: 6.5, color: const Color(0xFF00E5FF), isLaser: true));
         _bullets.add(Bullet(x: px + 8, y: py - 10, vx: 0, vy: -1050, isPlayer: true, damage: 55, radius: 6.5, color: const Color(0xFF00E5FF), isLaser: true));
         _bullets.add(Bullet(x: px - 20, y: py, vx: -160, vy: -880, isPlayer: true, damage: 32, radius: 5.5, color: const Color(0xFFFFD600)));
@@ -619,7 +699,6 @@ class _SpaceShooterGameState extends State<SpaceShooterGame>
         break;
 
       case 5:
-        // Level 5: 6-Way Spread + Dual Homing Missiles
         _bullets.add(Bullet(x: px - 8, y: py - 10, vx: 0, vy: -1100, isPlayer: true, damage: 65, radius: 7.0, color: const Color(0xFF00E5FF), isLaser: true));
         _bullets.add(Bullet(x: px + 8, y: py - 10, vx: 0, vy: -1100, isPlayer: true, damage: 65, radius: 7.0, color: const Color(0xFF00E5FF), isLaser: true));
         _bullets.add(Bullet(x: px - 20, y: py, vx: -150, vy: -920, isPlayer: true, damage: 38, radius: 5.5, color: const Color(0xFFFFD600)));
@@ -627,7 +706,6 @@ class _SpaceShooterGameState extends State<SpaceShooterGame>
         _bullets.add(Bullet(x: px - 30, y: py + 4, vx: -280, vy: -850, isPlayer: true, damage: 34, radius: 5.2, color: const Color(0xFFFF1744)));
         _bullets.add(Bullet(x: px + 30, y: py + 4, vx: 280, vy: -850, isPlayer: true, damage: 34, radius: 5.2, color: const Color(0xFFFF1744)));
 
-        // Dual Homing Missiles tracking Boss or nearest enemy
         Enemy? targetEnemy;
         for (final e in _enemies) {
           if (e.type == EnemyType.boss) {
@@ -644,7 +722,6 @@ class _SpaceShooterGameState extends State<SpaceShooterGame>
         break;
 
       default: // Level 6 (GOD TIER / OVERDRIVE)
-        // 8-Way Hyper Rainbow Laser + Quad Homing Missiles
         _bullets.add(Bullet(x: px - 10, y: py - 12, vx: 0, vy: -1200, isPlayer: true, damage: 90, radius: 7.5, color: const Color(0xFFFFD600), isLaser: true));
         _bullets.add(Bullet(x: px + 10, y: py - 12, vx: 0, vy: -1200, isPlayer: true, damage: 90, radius: 7.5, color: const Color(0xFFFFD600), isLaser: true));
         _bullets.add(Bullet(x: px - 18, y: py - 6, vx: -80, vy: -1000, isPlayer: true, damage: 50, radius: 6.0, color: const Color(0xFF00E5FF)));
@@ -654,7 +731,6 @@ class _SpaceShooterGameState extends State<SpaceShooterGame>
         _bullets.add(Bullet(x: px - 38, y: py + 6, vx: -320, vy: -850, isPlayer: true, damage: 40, radius: 5.2, color: const Color(0xFFFF1744)));
         _bullets.add(Bullet(x: px + 38, y: py + 6, vx: 320, vy: -850, isPlayer: true, damage: 40, radius: 5.2, color: const Color(0xFFFF1744)));
 
-        // Quad Homing Missiles
         Enemy? bossTarget;
         for (final e in _enemies) {
           if (e.type == EnemyType.boss) {
@@ -674,20 +750,36 @@ class _SpaceShooterGameState extends State<SpaceShooterGame>
     }
   }
 
-  // --- Boss & Enemy Danmaku Shooting Patterns ---
+  // --- Boss & Enemy Danmaku Shooting Patterns (Bắn Đạn Kim Cương Đỏ chuẩn Hình 2 & Hình 3, kết nối damage từ Purple Demon trong game.db) ---
   void _enemyFire(Enemy e) {
+    final demonDamage = _purpleDemon.damage > 0 ? _purpleDemon.damage.toDouble() : 20.0;
     if (e.type != EnemyType.boss) {
       switch (e.type) {
         case EnemyType.scout:
-          _bullets.add(Bullet(x: e.x, y: e.y + 12, vx: 0, vy: 280, isPlayer: false, damage: 12, radius: 4.0, color: const Color(0xFFFF1744)));
+          // Bắn đạn tinh thể kim cương đỏ (Single Red Diamond Shard - Hình 3)
+          _bullets.add(Bullet(x: e.x, y: e.y + 20, vx: 0, vy: 360, isPlayer: false, damage: demonDamage * 0.8, radius: 4.6, color: const Color(0xFFFF1744)));
           break;
         case EnemyType.interceptor:
-          _bullets.add(Bullet(x: e.x - 12, y: e.y + 10, vx: -50, vy: 310, isPlayer: false, damage: 16, radius: 4.5, color: const Color(0xFFE040FB)));
-          _bullets.add(Bullet(x: e.x + 12, y: e.y + 10, vx: 50, vy: 310, isPlayer: false, damage: 16, radius: 4.5, color: const Color(0xFFE040FB)));
+          // Bắn chùm 3 đạn tinh thể kim cương đỏ (3-Way Spread - Hình 3 Shoot Animation)
+          for (int i = -1; i <= 1; i++) {
+            _bullets.add(Bullet(x: e.x + i * 10, y: e.y + 20, vx: i * 75.0, vy: 380, isPlayer: false, damage: demonDamage, radius: 4.8, color: const Color(0xFFFF1744)));
+          }
           break;
         case EnemyType.heavyCruiser:
-          for (int i = -1; i <= 1; i++) {
-            _bullets.add(Bullet(x: e.x, y: e.y + 20, vx: i * 90.0, vy: 290, isPlayer: false, damage: 20, radius: 5.5, color: const Color(0xFF76FF03)));
+          // Bắn 4 viên đạn tinh thể kim cương đỏ rẽ quạt (4-Shard Arc chuẩn Hình 2)
+          final vxList = [-110.0, -38.0, 38.0, 110.0];
+          final xOff = [-16.0, -5.0, 5.0, 16.0];
+          for (int i = 0; i < 4; i++) {
+            _bullets.add(Bullet(
+              x: e.x + xOff[i],
+              y: e.y + 24,
+              vx: vxList[i],
+              vy: 370,
+              isPlayer: false,
+              damage: demonDamage,
+              radius: 5.4,
+              color: const Color(0xFFFF1744),
+            ));
           }
           break;
         default:
@@ -696,34 +788,32 @@ class _SpaceShooterGameState extends State<SpaceShooterGame>
       return;
     }
 
-    // --- 8 Boss Danmaku Bullet Hell Patterns (Mạnh dần qua từng level, Cấp 8 mạnh nhất không ai qua được) ---
+    // --- 8 Boss Danmaku Bullet Hell Patterns ---
     final lvl = e.bossConfig?.level ?? 1;
     final isEnraged = (e.health < e.maxHealth * 0.5);
 
     if (lvl == 1) {
-      // LEVEL 1: CYBER SCOUT COMMANDER
-      // 3-Way Spread Laser
-      for (int i = -1; i <= 1; i++) {
+      // 4-Way Crystal Shard Fan (Giống Hình 2)
+      final vxList = [-120.0, -40.0, 40.0, 120.0];
+      for (int i = 0; i < 4; i++) {
         _bullets.add(Bullet(
-          x: e.x + i * 20,
-          y: e.y + 28,
-          vx: i * 80.0,
-          vy: 280,
+          x: e.x + (i - 1.5) * 16,
+          y: e.y + 30,
+          vx: vxList[i],
+          vy: 340,
           isPlayer: false,
           damage: 14,
-          radius: 5.0,
-          color: const Color(0xFF00E5FF),
+          radius: 5.2,
+          color: const Color(0xFFFF1744),
         ));
       }
     } else if (lvl == 2) {
-      // LEVEL 2: CRIMSON PHANTOM
-      // 5-Way Fan Spread + Fast Pulse
       for (int i = -2; i <= 2; i++) {
         _bullets.add(Bullet(
           x: e.x + i * 16,
           y: e.y + 30,
-          vx: i * 75.0,
-          vy: 310,
+          vx: i * 80.0,
+          vy: 360,
           isPlayer: false,
           damage: 18,
           radius: 5.2,
@@ -731,18 +821,16 @@ class _SpaceShooterGameState extends State<SpaceShooterGame>
         ));
       }
     } else if (lvl == 3) {
-      // LEVEL 3: EMERALD JUGGERNAUT
-      // 7-Way Heavy Spread + Aimed Cannon Blast
       for (int i = -3; i <= 3; i++) {
         _bullets.add(Bullet(
           x: e.x + i * 15,
           y: e.y + 32,
-          vx: i * 65.0,
-          vy: 300,
+          vx: i * 70.0,
+          vy: 350,
           isPlayer: false,
           damage: 20,
           radius: 5.2,
-          color: const Color(0xFF00E676),
+          color: const Color(0xFFFF1744),
         ));
       }
       final dx = _playerPos.dx - e.x;
@@ -751,111 +839,98 @@ class _SpaceShooterGameState extends State<SpaceShooterGame>
       _bullets.add(Bullet(
         x: e.x,
         y: e.y + 35,
-        vx: math.cos(ang) * 380,
-        vy: math.sin(ang) * 380,
+        vx: math.cos(ang) * 420,
+        vy: math.sin(ang) * 420,
         isPlayer: false,
         damage: 26,
-        radius: 6.8,
-        color: const Color(0xFF76FF03),
+        radius: 6.5,
+        color: const Color(0xFFFF4081),
       ));
     } else if (lvl == 4) {
-      // LEVEL 4: SOLAR DESTROYER
-      // 8-Way Rotating Solar Burst + Dual High-Speed Lasers
       final baseA = e.moveTimer * 3.0;
       for (int i = 0; i < 8; i++) {
         final a = baseA + (i * math.pi / 4.0);
         _bullets.add(Bullet(
           x: e.x,
           y: e.y + 30,
-          vx: math.cos(a) * 280,
-          vy: math.sin(a) * 280 + 100,
+          vx: math.cos(a) * 300,
+          vy: math.sin(a) * 300 + 110,
           isPlayer: false,
           damage: 24,
           radius: 5.5,
-          color: const Color(0xFFFF9100),
+          color: const Color(0xFFFF1744),
         ));
       }
-      _bullets.add(Bullet(x: e.x - 28, y: e.y + 30, vx: -30, vy: 420, isPlayer: false, damage: 28, radius: 6.0, color: const Color(0xFFFFD600), isLaser: true));
-      _bullets.add(Bullet(x: e.x + 28, y: e.y + 30, vx: 30, vy: 420, isPlayer: false, damage: 28, radius: 6.0, color: const Color(0xFFFFD600), isLaser: true));
+      _bullets.add(Bullet(x: e.x - 28, y: e.y + 30, vx: -30, vy: 440, isPlayer: false, damage: 28, radius: 6.0, color: const Color(0xFFFF1744), isLaser: true));
+      _bullets.add(Bullet(x: e.x + 28, y: e.y + 30, vx: 30, vy: 440, isPlayer: false, damage: 28, radius: 6.0, color: const Color(0xFFFF1744), isLaser: true));
     } else if (lvl == 5) {
-      // LEVEL 5: TITAN DREADNOUGHT
-      // 10-Way Expanding Radial Ring + Twin Homing Missiles
       final baseA = e.moveTimer * 3.5;
       for (int i = 0; i < 10; i++) {
         final a = baseA + (i * math.pi / 5.0);
         _bullets.add(Bullet(
           x: e.x,
           y: e.y + 35,
-          vx: math.cos(a) * 300,
-          vy: math.sin(a) * 300 + 110,
+          vx: math.cos(a) * 320,
+          vy: math.sin(a) * 320 + 120,
           isPlayer: false,
           damage: 28,
           radius: 5.8,
           color: const Color(0xFFE040FB),
         ));
       }
-      _bullets.add(Bullet(x: e.x - 35, y: e.y + 20, vx: -120, vy: 260, isPlayer: false, damage: 32, radius: 6.5, color: const Color(0xFFFF1744), isMissile: true)..targetX = _playerPos.dx..targetY = _playerPos.dy);
-      _bullets.add(Bullet(x: e.x + 35, y: e.y + 20, vx: 120, vy: 260, isPlayer: false, damage: 32, radius: 6.5, color: const Color(0xFFFF1744), isMissile: true)..targetX = _playerPos.dx..targetY = _playerPos.dy);
+      _bullets.add(Bullet(x: e.x - 35, y: e.y + 20, vx: -120, vy: 280, isPlayer: false, damage: 32, radius: 6.5, color: const Color(0xFFFF1744), isMissile: true)..targetX = _playerPos.dx..targetY = _playerPos.dy);
+      _bullets.add(Bullet(x: e.x + 35, y: e.y + 20, vx: 120, vy: 280, isPlayer: false, damage: 32, radius: 6.5, color: const Color(0xFFFF1744), isMissile: true)..targetX = _playerPos.dx..targetY = _playerPos.dy);
     } else if (lvl == 6) {
-      // LEVEL 6: SHADOW BEHEMOTH
-      // Double-Helix Spiral Danmaku (12 bullets per burst) + Quad Laser Grid
       final spiral1 = e.moveTimer * 5.0;
       final spiral2 = -e.moveTimer * 5.0;
       for (int i = 0; i < 6; i++) {
         final a1 = spiral1 + (i * math.pi / 3.0);
         final a2 = spiral2 + (i * math.pi / 3.0);
-        _bullets.add(Bullet(x: e.x, y: e.y + 30, vx: math.cos(a1) * 310, vy: math.sin(a1) * 310 + 120, isPlayer: false, damage: 30, radius: 5.8, color: const Color(0xFF7C4DFF)));
-        _bullets.add(Bullet(x: e.x, y: e.y + 30, vx: math.cos(a2) * 310, vy: math.sin(a2) * 310 + 120, isPlayer: false, damage: 30, radius: 5.8, color: const Color(0xFFB388FF)));
+        _bullets.add(Bullet(x: e.x, y: e.y + 30, vx: math.cos(a1) * 330, vy: math.sin(a1) * 330 + 130, isPlayer: false, damage: 30, radius: 5.8, color: const Color(0xFFFF1744)));
+        _bullets.add(Bullet(x: e.x, y: e.y + 30, vx: math.cos(a2) * 330, vy: math.sin(a2) * 330 + 130, isPlayer: false, damage: 30, radius: 5.8, color: const Color(0xFFE040FB)));
       }
       for (int i = -1; i <= 1; i += 2) {
-        _bullets.add(Bullet(x: e.x + i * 45, y: e.y + 25, vx: i * 80.0, vy: 440, isPlayer: false, damage: 34, radius: 6.5, color: const Color(0xFFFF5252), isLaser: true));
+        _bullets.add(Bullet(x: e.x + i * 45, y: e.y + 25, vx: i * 80.0, vy: 460, isPlayer: false, damage: 34, radius: 6.5, color: const Color(0xFFFF5252), isLaser: true));
       }
     } else if (lvl == 7) {
-      // LEVEL 7: CELESTIAL ANNIHILATOR
-      // 16-Way Celestial Starburst Ring + Triple Direct Snipers
       final baseA = e.moveTimer * 5.5;
       for (int i = 0; i < 16; i++) {
         final a = baseA + (i * math.pi / 8.0);
-        _bullets.add(Bullet(x: e.x, y: e.y + 35, vx: math.cos(a) * 330, vy: math.sin(a) * 330 + 130, isPlayer: false, damage: 34, radius: 6.0, color: const Color(0xFFFFD600)));
+        _bullets.add(Bullet(x: e.x, y: e.y + 35, vx: math.cos(a) * 350, vy: math.sin(a) * 350 + 140, isPlayer: false, damage: 34, radius: 6.0, color: const Color(0xFFFF1744)));
       }
       final dx = _playerPos.dx - e.x;
       final dy = _playerPos.dy - e.y;
       final ang = math.atan2(dy, dx);
       for (int i = -1; i <= 1; i++) {
         final spread = ang + i * 0.12;
-        _bullets.add(Bullet(x: e.x + i * 20, y: e.y + 40, vx: math.cos(spread) * 440, vy: math.sin(spread) * 440, isPlayer: false, damage: 38, radius: 7.0, color: const Color(0xFFFF1744)));
+        _bullets.add(Bullet(x: e.x + i * 20, y: e.y + 40, vx: math.cos(spread) * 460, vy: math.sin(spread) * 460, isPlayer: false, damage: 38, radius: 7.0, color: const Color(0xFFFF1744)));
       }
     } else {
-      // =========================================================================
       // LEVEL 8: NEBULA OVERLORD - CẤP 8 MẠNH NHẤT KHÔNG AI QUA ĐƯỢC!
-      // (GOD-TIER UNBEATABLE BULLET HELL DANMAKU APOCALYPSE)
-      // =========================================================================
-      // 1. Vòng xoáy đạn Ma trận 20 tia xoay liên tục
       final baseA = e.moveTimer * 7.0;
       final count = isEnraged ? 24 : 20;
       for (int i = 0; i < count; i++) {
         final a = baseA + (i * math.pi * 2.0 / count);
-        final speed = isEnraged ? 360.0 : 330.0;
+        final speed = isEnraged ? 380.0 : 350.0;
         _bullets.add(Bullet(
           x: e.x,
           y: e.y + 45,
           vx: math.cos(a) * speed,
-          vy: math.sin(a) * speed + 130,
+          vy: math.sin(a) * speed + 140,
           isPlayer: false,
           damage: 42,
           radius: 6.8,
-          color: i % 2 == 0 ? const Color(0xFFFF0055) : const Color(0xFFFFD700),
+          color: const Color(0xFFFF1744),
         ));
       }
 
-      // 2. Tứ Pháo Laze siêu tốc quét dọc bản đồ
       for (int i = -2; i <= 2; i++) {
         if (i == 0) continue;
         _bullets.add(Bullet(
           x: e.x + i * 36,
           y: e.y + 40,
           vx: i * 40.0,
-          vy: 460,
+          vy: 480,
           isPlayer: false,
           damage: 46,
           radius: 7.2,
@@ -864,7 +939,6 @@ class _SpaceShooterGameState extends State<SpaceShooterGame>
         ));
       }
 
-      // 3. Cặp Tên lửa Hắc ám tự tìm mục tiêu
       _bullets.add(Bullet(
         x: e.x - 55,
         y: e.y + 25,
@@ -889,7 +963,6 @@ class _SpaceShooterGameState extends State<SpaceShooterGame>
         isMissile: true,
       )..targetX = _playerPos.dx..targetY = _playerPos.dy);
 
-      // 4. Pha Cuồng Nộ (< 50% HP): MƯA ĐẠN KÍN MÀN HÌNH - BẤT KHẢ THI
       if (isEnraged) {
         final oppA = -e.moveTimer * 8.5;
         for (int i = 0; i < 16; i++) {
@@ -897,27 +970,14 @@ class _SpaceShooterGameState extends State<SpaceShooterGame>
           _bullets.add(Bullet(
             x: e.x,
             y: e.y + 50,
-            vx: math.cos(a) * 380,
-            vy: math.sin(a) * 380 + 150,
+            vx: math.cos(a) * 400,
+            vy: math.sin(a) * 400 + 160,
             isPlayer: false,
             damage: 50,
             radius: 7.5,
-            color: const Color(0xFFFF3D00),
+            color: const Color(0xFFFF1744),
           ));
         }
-        final dx = _playerPos.dx - e.x;
-        final dy = _playerPos.dy - e.y;
-        final ang = math.atan2(dy, dx);
-        _bullets.add(Bullet(
-          x: e.x,
-          y: e.y + 40,
-          vx: math.cos(ang) * 520,
-          vy: math.sin(ang) * 520,
-          isPlayer: false,
-          damage: 55,
-          radius: 8.0,
-          color: const Color(0xFFFF0055),
-        ));
       }
     }
   }
@@ -926,19 +986,20 @@ class _SpaceShooterGameState extends State<SpaceShooterGame>
   void _destroyEnemy(Enemy e, int index) {
     _enemies.removeAt(index);
     _score += e.scoreValue;
+    if (_score > _highScore) {
+      _highScore = _score;
+      _saveProgressToDatabase();
+    }
     _addFloatingText(e.x, e.y, '+${e.scoreValue}', const Color(0xFFFFD600));
 
-    // Explosions
     final isBoss = e.type == EnemyType.boss;
-    _createExplosion(e.x, e.y, isBoss ? 65 : 20);
+    _createExplosion(e.x, e.y, isBoss ? 48 : 22, isBoss: isBoss);
     if (isBoss) {
       _screenShake = 0.85;
-      _flashOpacity = 0.0; // Triệt tiêu flash để tránh đục màn hình
     }
 
-    // Power-Up Drops (Tăng tỷ lệ rơi đồ để người chơi nhanh chóng nâng cấp lại súng)
     final rand = math.Random();
-    final dropChance = isBoss ? 1.0 : (e.type == EnemyType.heavyCruiser ? 0.85 : 0.40);
+    final dropChance = isBoss ? 1.0 : (e.type == EnemyType.heavyCruiser ? 0.85 : 0.42);
 
     if (rand.nextDouble() < dropChance) {
       final pType = PowerUpType.values[rand.nextInt(PowerUpType.values.length)];
@@ -987,7 +1048,7 @@ class _SpaceShooterGameState extends State<SpaceShooterGame>
         break;
 
       case PowerUpType.overdrive:
-        _overdriveTimer = 6.0; // 6s invulnerable super fire rate
+        _overdriveTimer = 6.0;
         _addFloatingText(p.x, p.y, '*** OVERDRIVE GOD MODE (6s)! ***', const Color(0xFFFF9100), scale: 1.3);
         _screenShake = 0.5;
         break;
@@ -1012,17 +1073,17 @@ class _SpaceShooterGameState extends State<SpaceShooterGame>
     if (_playerHealth <= 0) {
       _playerHealth = 0;
       _isGameOver = true;
-      _createExplosion(_playerPos.dx, _playerPos.dy, 45);
+      _saveProgressToDatabase();
+      _createExplosion(_playerPos.dx, _playerPos.dy, 35);
       setState(() {});
     }
   }
 
-  // --- Skill 1: EMP Nuke Blast ---
+  // --- Skill 1: EMP Nuke Blast (Vòng sóng năng lượng tím-đỏ chuẩn Hình 3, tuyệt đối không làm trắng màn hình) ---
   void _detonateBomb() {
     if (_bombCount <= 0 || _isGameOver) return;
     _bombCount--;
     _screenShake = 0.9;
-    _flashOpacity = 0.40; // Soft cyber glow, khong bi choi trang
     HapticFeedback.heavyImpact();
 
     // Clear all enemy bullets
@@ -1032,69 +1093,110 @@ class _SpaceShooterGameState extends State<SpaceShooterGame>
     for (int i = _enemies.length - 1; i >= 0; i--) {
       final e = _enemies[i];
       e.health -= (600 + _stage * 150.0);
-      _createImpactSparks(e.x, e.y, const Color(0xFFFF1744));
+      e.hitFlashTimer = 0.25;
+      _createImpactSparks(e.x, e.y, const Color(0xFFE040FB));
       if (e.health <= 0) {
         _destroyEnemy(e, i);
       }
     }
 
+    // Sóng xung kích năng lượng tím phân mảnh (không bao giờ phủ trắng màn hình)
     _particles.add(SpaceParticle(
-      x: _screenSize.width / 2,
-      y: _screenSize.height / 2,
+      x: _playerPos.dx,
+      y: _playerPos.dy,
       vx: 0,
       vy: 0,
-      maxLife: 0.75,
-      size: 500,
-      color: const Color(0xFF00E5FF),
+      maxLife: 0.65,
+      size: 260,
+      color: const Color(0xFFE040FB),
       isShockwave: true,
     ));
 
-    _addFloatingText(_screenSize.width / 2, 400, '*** EMP SUPERNOVA BLAST! ***', const Color(0xFF00E5FF), scale: 1.3);
+    _addFloatingText(_screenSize.width / 2, 400, '*** EMP SUPERNOVA BLAST! ***', const Color(0xFFE040FB), scale: 1.3);
     setState(() {});
   }
 
-  // --- VFX Helpers ---
-  void _createExplosion(double x, double y, int count) {
+  // --- VFX Helpers (Die Animation & Explosion Effect chuẩn Hình 3: Nổ tinh thể tím + tia sáng hồng trắng) ---
+  void _createExplosion(double x, double y, int count, {bool isBoss = false}) {
     final rand = math.Random();
+
+    // 1. Lõi nổ sao băng hồng-trắng-tím (Starburst Core - Hình 3)
     _particles.add(SpaceParticle(
       x: x,
       y: y,
       vx: 0,
       vy: 0,
-      maxLife: 0.5,
-      size: 90,
-      color: const Color(0xFFFF9100),
+      maxLife: isBoss ? 0.65 : 0.38,
+      size: isBoss ? 68 : 34,
+      color: const Color(0xFFAA00FF),
+      isStarburst: true,
+    ));
+
+    // 2. Vòng sóng năng lượng tím phân mảnh (Purple Shockwave Ring - Hình 3)
+    _particles.add(SpaceParticle(
+      x: x,
+      y: y,
+      vx: 0,
+      vy: 0,
+      maxLife: isBoss ? 0.75 : 0.48,
+      size: isBoss ? 140 : 62,
+      color: const Color(0xFFE040FB),
       isShockwave: true,
     ));
 
-    for (int i = 0; i < count; i++) {
+    // 3. Mảnh vỡ tinh thể tím văng tứ phía (Shattered Purple Crystal Shards - Hình 3)
+    final shardColors = [
+      const Color(0xFF7C4DFF),
+      const Color(0xFFB388FF),
+      const Color(0xFF4A148C),
+      const Color(0xFFFF4081),
+    ];
+    for (int i = 0; i < (count ~/ 2); i++) {
       final angle = rand.nextDouble() * math.pi * 2;
-      final speed = 70.0 + rand.nextDouble() * 240.0;
+      final speed = 60.0 + rand.nextDouble() * 190.0;
       _particles.add(SpaceParticle(
         x: x,
         y: y,
         vx: math.cos(angle) * speed,
         vy: math.sin(angle) * speed,
-        maxLife: 0.4 + rand.nextDouble() * 0.45,
-        size: 3.0 + rand.nextDouble() * 4.5,
-        color: i % 2 == 0 ? const Color(0xFFFFD600) : const Color(0xFFFF3D00),
+        maxLife: 0.42 + rand.nextDouble() * 0.35,
+        size: 4.5 + rand.nextDouble() * 5.0,
+        color: shardColors[i % shardColors.length],
+        isCrystalShard: true,
+        rotation: rand.nextDouble() * math.pi * 2,
+        rotationSpeed: (rand.nextDouble() - 0.5) * 14.0,
+      ));
+    }
+
+    // 4. Hạt sao lấp lánh tím hồng (Purple/Pink Sparkles - Hình 3)
+    for (int i = 0; i < count; i++) {
+      final angle = rand.nextDouble() * math.pi * 2;
+      final speed = 50.0 + rand.nextDouble() * 220.0;
+      _particles.add(SpaceParticle(
+        x: x,
+        y: y,
+        vx: math.cos(angle) * speed,
+        vy: math.sin(angle) * speed,
+        maxLife: 0.35 + rand.nextDouble() * 0.40,
+        size: 2.5 + rand.nextDouble() * 3.5,
+        color: i % 2 == 0 ? const Color(0xFFEA80FC) : const Color(0xFFFF4081),
       ));
     }
   }
 
   void _createImpactSparks(double x, double y, Color color) {
     final rand = math.Random();
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < 6; i++) {
       final angle = rand.nextDouble() * math.pi * 2;
-      final speed = 40.0 + rand.nextDouble() * 90.0;
+      final speed = 45.0 + rand.nextDouble() * 100.0;
       _particles.add(SpaceParticle(
         x: x,
         y: y,
         vx: math.cos(angle) * speed,
         vy: math.sin(angle) * speed,
         maxLife: 0.22,
-        size: 2.2,
-        color: color,
+        size: 2.6,
+        color: i.isEven ? color : Colors.white,
       ));
     }
   }
@@ -1108,7 +1210,7 @@ class _SpaceShooterGameState extends State<SpaceShooterGame>
     _screenSize = MediaQuery.of(context).size;
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: const Color(0xFF03030A),
       body: Stack(
         children: [
           // 1. Cosmic Canvas with Smooth 60-120fps Repaint Notifier
@@ -1134,6 +1236,7 @@ class _SpaceShooterGameState extends State<SpaceShooterGame>
                 animation: _frameNotifier,
                 builder: (context, _) {
                   return CustomPaint(
+                    size: Size.infinite,
                     painter: SpacePainter(
                       stars: _stars,
                       nebulae: _nebulae,
@@ -1154,6 +1257,7 @@ class _SpaceShooterGameState extends State<SpaceShooterGame>
                       animTime: _animTime,
                       screenShake: _screenShake,
                       flashOpacity: _flashOpacity,
+                      monsterSprite: _monsterSprite,
                     ),
                   );
                 },
@@ -1173,9 +1277,8 @@ class _SpaceShooterGameState extends State<SpaceShooterGame>
                   children: [
                     Row(
                       children: [
-                        // Back to Menu
                         InkWell(
-                          onTap: widget.onExitToMenu,
+                          onTap: _handleExitToMenu,
                           borderRadius: BorderRadius.circular(8),
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
@@ -1219,15 +1322,28 @@ class _SpaceShooterGameState extends State<SpaceShooterGame>
                         ),
                         const Spacer(),
 
-                        // Score
-                        Text(
-                          '$_score',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 1.2,
-                          ),
+                        // Score & High Score (SQLite)
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              '$_score',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 1.2,
+                              ),
+                            ),
+                            Text(
+                              '🏆 KỶ LỤC: $_highScore • BÀN MAX: $_highestStage/8',
+                              style: const TextStyle(
+                                color: Color(0xFFFFD600),
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -1237,7 +1353,6 @@ class _SpaceShooterGameState extends State<SpaceShooterGame>
                     // Health & Shield Bars
                     Row(
                       children: [
-                        // HP
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1264,7 +1379,6 @@ class _SpaceShooterGameState extends State<SpaceShooterGame>
                         ),
                         const SizedBox(width: 12),
 
-                        // Shield
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1304,7 +1418,6 @@ class _SpaceShooterGameState extends State<SpaceShooterGame>
             right: 16,
             child: Row(
               children: [
-                // Weapon Badge
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
@@ -1344,7 +1457,6 @@ class _SpaceShooterGameState extends State<SpaceShooterGame>
                 ),
                 const Spacer(),
 
-                // EMP Nuke Button
                 GestureDetector(
                   onTap: _detonateBomb,
                   child: Container(
@@ -1411,6 +1523,11 @@ class _SpaceShooterGameState extends State<SpaceShooterGame>
                         Text(
                           'Điểm hiện tại: $_score',
                           style: const TextStyle(color: Colors.white70, fontSize: 15, fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '🏆 Kỷ lục SQLite: $_highScore • Bàn cao nhất: $_highestStage/8',
+                          style: const TextStyle(color: Color(0xFFFFD600), fontSize: 12.5, fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 20),
                         SizedBox(
@@ -1529,7 +1646,7 @@ class _SpaceShooterGameState extends State<SpaceShooterGame>
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          'Dừng bước tại: STAGE $_stage/10',
+                          'Dừng bước tại: STAGE $_stage/8',
                           style: const TextStyle(color: Color(0xFFFF5252), fontSize: 14, fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 12),
@@ -1537,12 +1654,17 @@ class _SpaceShooterGameState extends State<SpaceShooterGame>
                           'Điểm số: $_score',
                           style: const TextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.bold),
                         ),
+                        const SizedBox(height: 6),
+                        Text(
+                          '🏆 Kỷ lục cao nhất: $_highScore • Bàn cao nhất: $_highestStage/8',
+                          style: const TextStyle(color: Color(0xFFFFD600), fontSize: 13, fontWeight: FontWeight.bold),
+                        ),
                         const SizedBox(height: 20),
                         Row(
                           children: [
                             Expanded(
                               child: OutlinedButton(
-                                onPressed: widget.onExitToMenu,
+                                onPressed: _handleExitToMenu,
                                 style: OutlinedButton.styleFrom(
                                   side: const BorderSide(color: Colors.white30),
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),

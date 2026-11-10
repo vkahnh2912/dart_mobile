@@ -37,7 +37,7 @@ class Nebula {
   });
 }
 
-// Particle Effect (Fire, Sparks, Explosions, Shockwaves)
+// Particle Effect (Crystal Shards, Starbursts, Sparks, Explosions, Shockwaves)
 class SpaceParticle {
   double x;
   double y;
@@ -48,6 +48,10 @@ class SpaceParticle {
   final double size;
   final Color color;
   final bool isShockwave;
+  final bool isCrystalShard;
+  final bool isStarburst;
+  double rotation;
+  final double rotationSpeed;
 
   SpaceParticle({
     required this.x,
@@ -58,11 +62,16 @@ class SpaceParticle {
     required this.size,
     required this.color,
     this.isShockwave = false,
+    this.isCrystalShard = false,
+    this.isStarburst = false,
+    this.rotation = 0.0,
+    this.rotationSpeed = 0.0,
   }) : life = maxLife;
 
   bool update(double dt) {
     x += vx * dt;
     y += vy * dt;
+    rotation += rotationSpeed * dt;
     life -= dt;
     return life > 0;
   }
@@ -150,7 +159,7 @@ class WingmanDrone {
   WingmanDrone({required this.isLeft});
 }
 
-// 10 Boss Configurations (From Level 1 to Level 10)
+// 8 Boss Configurations (From Level 1 to Level 8)
 class BossConfig {
   final int level;
   final String name;
@@ -184,15 +193,15 @@ class BossConfig {
     // Level 1: Cyber Scout Commander
     BossConfig(
       level: 1,
-      name: 'CYBER COMMANDER',
-      title: 'Vanguard Scout Flagship',
+      name: 'CRYSTAL CYCLOPS LORD',
+      title: 'Vanguard Crystal Flagship',
       maxHealth: 1600,
-      width: 140,
-      height: 75,
-      primaryColor: Color(0xFF00E5FF),
-      secondaryColor: Color(0xFF0D47A1),
-      coreColor: Color(0xFF00B0FF),
-      shootInterval: 1.05,
+      width: 145,
+      height: 85,
+      primaryColor: Color(0xFFE040FB),
+      secondaryColor: Color(0xFF4A148C),
+      coreColor: Color(0xFFFF1744),
+      shootInterval: 0.95,
       scoreValue: 3000,
       difficultyTag: 'DỄ (CẤP 1)',
     ),
@@ -203,26 +212,26 @@ class BossConfig {
       title: 'Stealth Warp Interceptor',
       maxHealth: 3600,
       width: 160,
-      height: 80,
+      height: 90,
       primaryColor: Color(0xFFFF1744),
       secondaryColor: Color(0xFF880E4F),
       coreColor: Color(0xFFFF5252),
-      shootInterval: 0.90,
+      shootInterval: 0.82,
       scoreValue: 5000,
       difficultyTag: 'BÌNH THƯỜNG (CẤP 2)',
     ),
     // Level 3: Emerald Juggernaut
     BossConfig(
       level: 3,
-      name: 'EMERALD JUGGERNAUT',
+      name: 'AMETHYST JUGGERNAUT',
       title: 'Heavy Siege Dreadnought',
       maxHealth: 7200,
       width: 180,
-      height: 90,
-      primaryColor: Color(0xFF00E676),
-      secondaryColor: Color(0xFF1B5E20),
-      coreColor: Color(0xFF76FF03),
-      shootInterval: 0.78,
+      height: 96,
+      primaryColor: Color(0xFF7C4DFF),
+      secondaryColor: Color(0xFF311B92),
+      coreColor: Color(0xFFFF4081),
+      shootInterval: 0.72,
       scoreValue: 8000,
       difficultyTag: 'KHÁ (CẤP 3)',
     ),
@@ -233,11 +242,11 @@ class BossConfig {
       title: 'Plasma Core Cruiser',
       maxHealth: 12500,
       width: 200,
-      height: 95,
+      height: 102,
       primaryColor: Color(0xFFFF9100),
       secondaryColor: Color(0xFFBF360C),
       coreColor: Color(0xFFFFD600),
-      shootInterval: 0.68,
+      shootInterval: 0.62,
       scoreValue: 12000,
       difficultyTag: 'KHÓ (CẤP 4)',
     ),
@@ -248,11 +257,11 @@ class BossConfig {
       title: 'Armored Fleet Destroyer',
       maxHealth: 20000,
       width: 220,
-      height: 105,
+      height: 110,
       primaryColor: Color(0xFFE040FB),
       secondaryColor: Color(0xFF4A148C),
       coreColor: Color(0xFFEA80FC),
-      shootInterval: 0.56,
+      shootInterval: 0.52,
       scoreValue: 18000,
       difficultyTag: 'RẤT KHÓ (CẤP 5)',
     ),
@@ -263,11 +272,11 @@ class BossConfig {
       title: 'Dark Matter Leviathan',
       maxHealth: 32000,
       width: 240,
-      height: 110,
+      height: 115,
       primaryColor: Color(0xFF7C4DFF),
       secondaryColor: Color(0xFF311B92),
       coreColor: Color(0xFFB388FF),
-      shootInterval: 0.46,
+      shootInterval: 0.42,
       scoreValue: 28000,
       difficultyTag: 'ÁC MỘNG (CẤP 6)',
     ),
@@ -278,11 +287,11 @@ class BossConfig {
       title: 'Starlight Annihilator',
       maxHealth: 50000,
       width: 255,
-      height: 118,
+      height: 122,
       primaryColor: Color(0xFFFFD600),
       secondaryColor: Color(0xFFFF6F00),
       coreColor: Color(0xFFFFF176),
-      shootInterval: 0.36,
+      shootInterval: 0.34,
       scoreValue: 45000,
       difficultyTag: 'SIÊU ÁC MỘNG (CẤP 7)',
     ),
@@ -293,18 +302,18 @@ class BossConfig {
       title: 'CẤP 8 MẠNH NHẤT - BẤT KHẢ CHIẾN BẠI',
       maxHealth: 95000,
       width: 280,
-      height: 130,
+      height: 135,
       primaryColor: Color(0xFFFF0055),
       secondaryColor: Color(0xFF1E002E),
       coreColor: Color(0xFFFFD700),
-      shootInterval: 0.22,
+      shootInterval: 0.20,
       scoreValue: 100000,
       difficultyTag: 'CẤP 8 MẠNH NHẤT (KHÔNG AI QUA ĐƯỢC)',
     ),
   ];
 }
 
-// Enemy Spacecraft Types
+// Enemy Spacecraft / Monster Types
 enum EnemyType { scout, interceptor, heavyCruiser, boss }
 
 class Enemy {
@@ -323,6 +332,10 @@ class Enemy {
   final double shootInterval;
   double moveTimer = 0.0;
   double initialX;
+
+  // Animation timers (Hit Flash & Shoot Recoil as in Image 3)
+  double hitFlashTimer = 0.0;
+  double shootAnimTimer = 0.0;
 
   // Boss specific properties
   final BossConfig? bossConfig;
@@ -350,16 +363,22 @@ class Enemy {
     shootTimer += dt;
     bossSkillTimer += dt;
     specialAttackTimer += dt;
+    if (hitFlashTimer > 0) {
+      hitFlashTimer = (hitFlashTimer - dt).clamp(0.0, 1.0);
+    }
+    if (shootAnimTimer > 0) {
+      shootAnimTimer = (shootAnimTimer - dt).clamp(0.0, 1.0);
+    }
 
     switch (type) {
       case EnemyType.scout:
-        // Swooping sine wave motion
+        // Tốc độ bay và lượn sóng nhanh gấp đôi (2x speed)
         y += vy * dt;
-        x = initialX + math.sin(moveTimer * 3.2) * 60.0;
+        x = (initialX + math.sin(moveTimer * 6.4) * 65.0).clamp(28.0, screenWidth - 28.0);
         break;
 
       case EnemyType.interceptor:
-        // Aggressive zig-zag diving
+        // Đảo cánh cắt chéo tốc độ gấp đôi (2x speed)
         y += vy * dt;
         x += vx * dt;
         if (x < 30 || x > screenWidth - 30) {
@@ -368,25 +387,25 @@ class Enemy {
         break;
 
       case EnemyType.heavyCruiser:
-        // Slow advance, stops at top third to bombard
-        if (y < 160) {
+        // Quái tinh thể hạng nặng tiến công nhanh gấp đôi (2x speed)
+        if (y < 165) {
           y += vy * dt;
         } else {
-          x = initialX + math.sin(moveTimer * 1.6) * 70.0;
+          y += (vy * 0.25) * dt;
+          x = (initialX + math.sin(moveTimer * 3.2) * 75.0).clamp(42.0, screenWidth - 42.0);
         }
         break;
 
       case EnemyType.boss:
-        // Mega Dreadnought entrance and boss patterns
+        // Mega Crystal Dreadnought entrance and boss patterns (2x faster movement)
         final targetTopY = (bossConfig?.level ?? 1) >= 8 ? 120.0 : 135.0;
         if (y < targetTopY) {
           y += vy * dt;
         } else {
-          // Dynamic movement depending on boss level
-          final swaySpeed = 0.8 + ((bossConfig?.level ?? 1) * 0.12);
+          final swaySpeed = (0.8 + ((bossConfig?.level ?? 1) * 0.12)) * 2.0;
           final swayWidth = (screenWidth * 0.35).clamp(80.0, 140.0);
           x = (screenWidth / 2) + math.sin(moveTimer * swaySpeed) * swayWidth;
-          y = targetTopY + math.sin(moveTimer * 1.8) * 15.0;
+          y = targetTopY + math.sin(moveTimer * 3.2) * 16.0;
         }
         break;
     }

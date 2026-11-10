@@ -8,6 +8,12 @@ import 'models/ide_models.dart';
 import 'services/ide_storage_service.dart';
 import 'screens/code_editor_screen.dart';
 import 'screens/ide_workspace_screen.dart';
+import 'games/game_hub_screen.dart';
+import 'screens/sqlite_notes_screen.dart';
+import 'screens/rest_api_screen.dart';
+import 'screens/firebase_backend_screen.dart';
+import 'services/firebase_backend_service.dart';
+import 'database/database_helper.dart';
 
 // Quản lý Theme toàn app (Mặc định sáng theo yêu cầu của anh Khánh)
 final ValueNotifier<ThemeMode> appThemeMode = ValueNotifier(ThemeMode.light);
@@ -16,6 +22,8 @@ final ValueNotifier<double> appCodeFontSize = ValueNotifier(14.5);
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  DatabaseHelper.instance.database.ignore();
+  FirebaseBackendService.instance.init().ignore();
   runApp(const DartTITVApp());
 }
 
@@ -136,8 +144,11 @@ class _MainShellScreenState extends State<MainShellScreen> {
       body: IndexedStack(
         index: _currentIndex,
         children: const [
-          HomeScreen(),           // Phần 1: Ví dụ & Thực hành Video 10-40
-          IdeWorkspaceScreen(),   // Phần 2: Viết code như VS Code
+          HomeScreen(),             // Tab 0: Bài học & Ví dụ (Video 10-46)
+          SqliteNotesScreen(),      // Tab 1: Kỹ thuật 1 - SQLite Database
+          RestApiScreen(),          // Tab 2: Kỹ thuật 2 - Gọi REST API trên mạng
+          FirebaseBackendScreen(),  // Tab 3: Kỹ thuật 3 - Firebase Auth & CSDL
+          GameHubScreen(),          // Tab 4: Chơi Game (Lưu điểm & quái game.db)
         ],
       ),
       bottomNavigationBar: Container(
@@ -156,16 +167,32 @@ class _MainShellScreenState extends State<MainShellScreen> {
           backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
           indicatorColor: const Color(0xFF2563EB).withValues(alpha: 0.15),
           elevation: 2,
+          labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
           destinations: const [
             NavigationDestination(
               icon: Icon(Icons.menu_book_outlined),
               selectedIcon: Icon(Icons.menu_book_rounded, color: Color(0xFF2563EB)),
-              label: 'Ví Dụ & Thực Hành (10-40)',
+              label: 'Bài Học',
             ),
             NavigationDestination(
-              icon: Icon(Icons.code_rounded),
-              selectedIcon: Icon(Icons.terminal_rounded, color: Color(0xFF2563EB)),
-              label: 'Không Gian Code (VS Code)',
+              icon: Icon(Icons.storage_outlined),
+              selectedIcon: Icon(Icons.storage_rounded, color: Color(0xFF2563EB)),
+              label: '1. SQLite',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.public_outlined),
+              selectedIcon: Icon(Icons.public_rounded, color: Color(0xFF2563EB)),
+              label: '2. Gọi API',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.cloud_done_outlined),
+              selectedIcon: Icon(Icons.cloud_done_rounded, color: Color(0xFF2563EB)),
+              label: '3. Firebase',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.sports_esports_outlined),
+              selectedIcon: Icon(Icons.sports_esports_rounded, color: Color(0xFF2563EB)),
+              label: 'Chơi Game',
             ),
           ],
         ),
@@ -236,7 +263,7 @@ class _HomeScreenState extends State<HomeScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Dart & Flutter TITV • Video 10 - 40',
+              'Dart & Flutter TITV • Video 10 - 46',
               style: TextStyle(
                 fontFamily: 'Times New Roman',
                 fontSize: 17.5,
@@ -257,6 +284,16 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
         actions: [
+          // Nút mở Không Gian Code (VS Code)
+          IconButton(
+            tooltip: 'Mở Không Gian Code (VS Code)',
+            icon: const Icon(Icons.terminal_rounded, color: Color(0xFF4F46E5)),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const IdeWorkspaceScreen()),
+              );
+            },
+          ),
           // Nút đổi giao diện Sáng / Tối
           IconButton(
             tooltip: isDark ? 'Chuyển sang giao diện Sáng' : 'Chuyển sang giao diện Tối',

@@ -565,4 +565,65 @@ void main() {
   print('4. Kiểm tra hợp lệ khi bấm nút: if (_formKey.currentState!.validate()) { ... }');
 }
 ''',
+
+  42: r'''// Bài 41: SQLite (sqflite) - Thiết kế Model NoteItem & toMap / fromMap
+// File: lib/models/note_model.dart
+void main() {
+  print('=== BÀI 41: MODEL NOTEITEM & ÁNH XẠ DỮ LIỆU SQLITE ===');
+  print('1. toMap(): Chuyển đối tượng Dart sang Map<String, dynamic> để INSERT/UPDATE.');
+  print('2. fromMap(): Đọc từng dòng Map<String, dynamic> từ SQLite sang Object.');
+}
+''',
+
+  43: r'''// Bài 42: SQLite (sqflite) - Xây dựng DatabaseHelper Singleton & Tạo Bảng
+// File: lib/database/database_helper.dart & lib/services/note_database_helper.dart
+void main() {
+  print('=== BÀI 42: KHỞI TẠO CƠ SỞ DỮ LIỆU SQLITE (game.db & vutrongkhanh_notes.db) ===');
+  print('1. Dùng getDatabasesPath() + join(dbPath, "game.db")');
+  print('2. openDatabase(..., version: 1, onCreate: _onCreate)');
+  print('3. Tạo bảng monsters, players, notes và firebase_users.');
+}
+''',
+
+  44: r'''// Bài 43: SQLite (sqflite) - Thực hành CRUD (Create - Read - Update - Delete)
+// File: lib/repositories/monster_repository.dart
+void main() {
+  print('=== BÀI 43: THAO TÁC CRUD TRÊN BẢNG MONSTERS & NOTES ===');
+  print('1. Create: db.insert("monsters", monster.toMap())');
+  print('2. Read:   db.query("monsters", orderBy: "id ASC")');
+  print('3. Update: db.update("monsters", monster.toMap(), where: "id = ?", whereArgs: [id])');
+  print('4. Delete: db.delete("monsters", where: "id = ?", whereArgs: [id])');
+}
+''',
+
+  45: r'''// Bài 44: Ứng dụng Quản lý Ghi chú SQLite hoàn chỉnh
+// File: lib/screens/sqlite_notes_screen.dart
+void main() {
+  print('=== BÀI 44: ỨNG DỤNG QUẢN LÝ GHI CHÚ SQLITE ===');
+  print('Mở tab "1. SQLite" ở thanh điều hướng dưới cùng để trải nghiệm trực tiếp!');
+}
+''',
+
+  46: r'''// Bài 45: Kỹ thuật 2 - Gọi các API trên mạng (HTTP GET / POST / PUT / DELETE) & Hiển thị JSON
+// File: lib/services/api_service.dart & lib/screens/rest_api_screen.dart
+void main() {
+  print('=== BÀI 45: GỌI REST API TRÊN MẠNG & PARSE JSON ===');
+  print('1. GET  https://dummyjson.com/products  -> Lấy danh sách Sản phẩm');
+  print('2. GET  https://dummyjson.com/posts     -> Lấy danh sách Bài viết');
+  print('3. POST https://dummyjson.com/posts/add -> Gửi bài viết mới lên Server');
+  print('4. PUT/DELETE https://dummyjson.com/posts/{id} -> Sửa & Xóa bài viết');
+  print('5. GET  https://dummyjson.com/users     -> Lấy danh sách Users');
+}
+''',
+
+  47: r'''// Bài 46: Kỹ thuật 3 - Dùng Firebase tạo CSDL & Backend (Đăng ký, Đăng nhập, Sửa Profile)
+// File: lib/services/firebase_backend_service.dart & lib/screens/firebase_backend_screen.dart
+void main() {
+  print('=== BÀI 46: FIREBASE AUTHENTICATION & CLOUD REALTIME DATABASE ===');
+  print('1. Đăng ký (POST /v1/accounts:signUp) & tạo document /users/{uid}');
+  print('2. Đăng nhập (POST /v1/accounts:signInWithPassword) & nhận JWT idToken');
+  print('3. Sửa Profile (PATCH /users/{uid}.json): displayName, studentId, phone, bio, avatarUrl');
+  print('4. Đồng bộ điểm cao Game SQLite & Ghi chú lên Cloud Database');
+}
+''',
 };

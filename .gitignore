@@ -1,0 +1,14 @@
+# Flutter/Dart build & cache
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+android/.gradle/
+android/.kotlin/
+android/app/build/
+android/local.properties
+*.apk
+*.aab
+*.iml
+.idea/
